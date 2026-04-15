@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <title>Anomaly Detection System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    />
+</head>
+<body class="bg-light">
+<div class="container my-4">
+    <h1 class="mb-3">Anomaly Detection System</h1>
+    <p class="text-muted">
+        Veri seti: <code>data/dataSet.csv</code><br />
+        Yöntem: Z-Score tabanlı anomaly detection (score = packet_size + frequency_band_energy)
+    </p>
+
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="POST">
+                <div class="row g-3 align-items-center">
+                    <div class="col-auto">
+                        <label for="threshold" class="col-form-label">
+                            Z-Score Eşik Değeri:
+                        </label>
+                    </div>
+                    <div class="col-auto">
+                        <input
+                            type="number"
+                            step="0.1"
+                            class="form-control"
+                            id="threshold"
+                            name="threshold"
+                            value="{{ threshold }}"
+                        />
+                    </div>
+                    <div class="col-auto">
+                        <button type="submit" class="btn btn-primary">
+                            Hesapla
+                        </button>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    Daha düşük eşik = daha hassas (daha fazla anomali, daha fazla false positive).
+                </small>
+            </form>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card text-bg-light">
+                <div class="card-body">
+                    <h6 class="card-title">Toplam Kayıt</h6>
+                    <p class="card-text fs-4">{{ total_records }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-light">
+                <div class="card-body">
+                    <h6 class="card-title">Label=1 (Gerçek Anomali)</h6>
+                    <p class="card-text fs-4">{{ label_anomaly_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-light">
+                <div class="card-body">
+                    <h6 class="card-title">Algoritmanın Bulduğu Anomali</h6>
+                    <p class="card-text fs-4">{{ algo_anomaly_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-bg-light">
+                <div class="card-body">
+                    <h6 class="card-title">Eşik (|z| ≥)</h6>
+                    <p class="card-text fs-4">{{ threshold }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5>Performans (Label ile Karşılaştırma)</h5>
+            <div class="row mt-3">
+                <div class="col-md-4">
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>True Positive (TP)</span>
+                            <span class="badge bg-success rounded-pill">{{ tp }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>False Positive (FP)</span>
+                            <span class="badge bg-danger rounded-pill">{{ fp }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>False Negative (FN)</span>
+                            <span class="badge bg-warning text-dark rounded-pill">{{ fn }}</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-8">
+                    <table class="table table-sm table-bordered text-center align-middle">
+                        <thead class="table-light">
+                        <tr>
+                            <th rowspan="2" class="align-middle">Gerçek</th>
+                            <th colspan="2">Algoritma</th>
+                        </tr>
+                        <tr>
+                            <th>Anomali</th>
+                            <th>Normal</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <th>Anomali (label=1)</th>
+                            <td>{{ tp }}</td>
+                            <td>{{ fn }}</td>
+                        </tr>
+                        <tr>
+                            <th>Normal (label=0)</th>
+                            <td>{{ fp }}</td>
+                            <td>{{ total_records - label_anomaly_count - fp + 0 }}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+
+                    <p class="mt-2 mb-0">
+                        <strong>Precision:</strong> {{ "%.3f"|format(precision) }} &nbsp; | &nbsp;
+                        <strong>Recall:</strong> {{ "%.3f"|format(recall) }} &nbsp; | &nbsp;
+                        <strong>F1-Score:</strong> {{ "%.3f"|format(f1) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+  
+    <div class="card mb-5">
+        <div class="card-body">
+            <h5>Örnek Anomaliler (İlk 20, |z|-skoru en yüksek)</h5>
+            <div class="table-responsive mt-3">
+                <table class="table table-striped table-hover table-sm align-middle">
+                    <thead class="table-light">
+                    <tr>
+                        <th>#</th>
+                        <th>Index</th>
+                        <th>Score</th>
+                        <th>z-score</th>
+                        <th>Algoritma Anomali?</th>
+                        <th>Label</th>
+                        <th>Durum</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for a in anomalies %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ a.record.index }}</td>
+                            <td>{{ "%.4f"|format(a.record.score) }}</td>
+                            <td>{{ "%.2f"|format(a.z_score) }}</td>
+                            <td>
+                                {% if a.is_anomaly %}
+                                    <span class="badge bg-danger">Evet</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Hayır</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ a.record.label }}</td>
+                            <td>
+                                {% if a.record.label == 1 and a.is_anomaly %}
+                                    <span class="badge bg-success">Doğru Anomali (TP)</span>
+                                {% elif a.record.label == 0 and a.is_anomaly %}
+                                    <span class="badge bg-warning text-dark">False Positive</span>
+                                {% elif a.record.label == 1 and not a.is_anomaly %}
+                                    <span class="badge bg-warning text-dark">False Negative</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Normal</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <small class="text-muted">
+                Gösterilen anomaliler, |z-score| değeri en yüksek olan ilk 20 kayıttır.
+            </small>
+        </div>
+    </div>
+</div>
+</body>
+</html>
